@@ -1,0 +1,35 @@
+{
+  "name": "twitch-plays",
+  "version": "1.0.0",
+  "dependencies": {
+    "@twurple/chat": "5.2.5",
+    "uiohook-napi": "1.5.0",
+    "robotjs": "0.6.0"
+  },
+  "devDependencies": {
+    "typescript": "4.8.4",
+    "pkg": "5.8.0",
+    "@types/node": "18.8.2",
+    "caxa": "2.1.0"
+  },
+  "module": "build/main.js",
+  "main": "build/main.js",
+  "bin": "build/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "start": "node .",
+    "start-coord": "node . --coordinates",
+    "pkg": "tsc && pkg --public package.json",
+    "caxa": "tsc && caxa --input . --exclude \".git\" \".idea\" \"config\" \"dist\" \"game\" \"config.json\" \"currentcommands.txt\" \"src\" --output \"dist/twitchplays.exe\" -- \"{{caxa}}/node_modules/.bin/node\" \"{{caxa}}/build/main.js\""
+  },
+  "pkg": {
+    "assets": [
+
+    ],
+    "targets": [
+      "node18-win"
+    ],
+    "outputPath": "dist"
+  }
+}
