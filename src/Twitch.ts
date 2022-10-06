@@ -1,4 +1,5 @@
 import {ChatClient} from "@twurple/chat";
+import { TwitchPrivateMessage } from "@twurple/chat/lib/commands/TwitchPrivateMessage";
 
 export class TwitchChatListener {
     protected client: ChatClient;
@@ -32,11 +33,11 @@ export class TwitchChatListener {
                 this.emit("hostcommand", command, commands);
                 return;
             }
-            if (message.length > 0 && message.length <= 32) this.emit('command', message.trim().toLowerCase());
+            if (message.length > 0 && message.length <= 32) this.emit('command', message.trim().toLowerCase(), msg);
         });
     }
 
-    on(event: "command", callback: (command: string) => void): this;
+    on(event: "command", callback: (command: string, originalMessage: TwitchPrivateMessage) => void): this;
     on(event: "hostcommand", callback: (command: string, args: string[]) => void): this;
     on(event: string, callback: Function): this {
         if (!this.listeners.has(event)) {

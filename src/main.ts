@@ -6,6 +6,8 @@ import GameManager from "./GameManager.js";
 import asyncTimers from "node:timers/promises";
 import logs from "./Logs.js";
 
+import "./Utils.js";
+
 (async () => {
     if (process.argv.includes('--coordinates')) {
         Keybinds.init();
@@ -16,12 +18,14 @@ import logs from "./Logs.js";
     } else {
         await logs.init();
         await GameManager.createDefaultAvailableCommandsFile();
+        await Config.createGameConfigFolder();
         if (!Config.existsConfig()) {
             await Config.createDefaultConfig();
             await logs.log("The default config has been created. Please change the options and then restart the program.");
             await logs.log("Exiting in 5 seconds...");
             await asyncTimers.setTimeout(5000);
             process.exit(0);
+            return;
         }
         await Config.init();
         Keybinds.onAction("stop", () => {
@@ -35,8 +39,6 @@ import logs from "./Logs.js";
         const listener = new TwitchChatListener();
         await listener.connect(<string>Config.getValue("channel"));
         cmdManager.appendChatListener(listener);
-        cmdManager.setCommandThreshold(<number>Config.getValue("threshold"));
-        cmdManager.setCommandTimeout(<number>Config.getValue("timeout"));
         await logs.log("\x1b[32mTwitchPlays was successfully started");
     }
 })();

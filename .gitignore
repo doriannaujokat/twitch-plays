@@ -1,2 +1,8 @@
 node_modules
 build
+dist
+config
+config.json
+latest.log
+previous.log
+currentcommands.txt

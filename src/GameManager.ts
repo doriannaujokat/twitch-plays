@@ -7,22 +7,26 @@ import robotjs from "robotjs";
 import fss from "node:fs";
 import logs from "./Logs.js";
 import Config from "./Config.js";
+import { GameConfig } from "./Config.js";
 
 export const commandManager = new CommandManager();
 commandManager.on("command", onCommand);
 commandManager.on("stop", reset);
+commandManager.on("start", start);
 commandManager.on("toggled", () => availabilityChanged());
 
 export type CommandQueueItem = {type: "click", x: number, y: number, delay?: number} | {type: "pos"|"move", x: number, y: number} | {type: "delay", ms: number};
 
 let game: string;
-let gameConfig: {};
+let gameConfig: GameConfig;
 const listener: Map<string, Set<Function>> = new Map();
 let resetCallback: Function;
+let startCallback: Function;
 let timeouts: Set<NodeJS.Timeout> = new Set();
 let commandQueue: CommandQueueItem[] = [];
 let processingQueue = false;
 let currentKeys: Set<string> = new Set();
+let _registerCallback: Function;
 
 let currentlyAvailableCommands: string[] = [];
 
@@ -60,6 +64,13 @@ class GameContext {
     }
     defaultConfig(config) {
         gameConfig = config;
+    }
+    register(callback) {
+        if (_registerCallback) return;
+        _registerCallback = callback;
+    }
+    start(callback) {
+        startCallback = callback;
     }
 }
 
@@ -114,6 +125,7 @@ const context = vm.createContext(new GameContext(), {})
 export async function load(g: string) {
     if (game !== undefined) await unload();
     game = g;
+    // @ts-ignore
     gameConfig = {};
     try {
         const file = await fs.readFile(path.join(process.cwd(),'game', `${game}.js`), {encoding: "utf-8", flag: "r"});
@@ -128,9 +140,18 @@ export async function load(g: string) {
     try {
         const file = await fs.readFile(path.join(process.cwd(), "config", `${game}.json`), {encoding: "utf-8", flag: "r"});
         const loadedGameConfig = JSON.parse(file);
-        gameConfig = Object.assign(gameConfig, loadedGameConfig);
+        gameConfig = Object.deepMerge(gameConfig, loadedGameConfig);
     } catch (e) {
         if (e.code !== "ENOENT") await logs.error(e);
+        if (e.code === "ENOENT") await fs.writeFile(path.join(process.cwd(), "config", `${game}.json`), JSON.stringify(gameConfig, null, 4), {encoding: "utf-8", flag: "w"});
+    }
+    gameConfig = <GameConfig>Object.deepMerge({wait: Config.getValue("wait"), timeout: Config.getValue("timeout"), threshold: Config.getValue("threshold")}, gameConfig);
+    commandManager.setCommandWait(gameConfig.wait);
+    commandManager.setCommandTimeout(gameConfig.timeout);
+    commandManager.setCommandThreshold(gameConfig.threshold);
+    _registerCallback?.();
+    if (gameConfig !== undefined && (<GameConfig>gameConfig).commands !== undefined) for (let command of commandManager.commandList) {
+        commandManager.setCommandOptions(command, (<GameConfig>gameConfig).commands[command]);
     }
 }
 
@@ -183,12 +204,20 @@ export function unload() {
     game = undefined;
     gameConfig = undefined;
     currentlyAvailableCommands = [];
+    _registerCallback = undefined;
+    resetCallback = undefined;
+    startCallback = undefined;
 }
 
 export function reset() {
     clearTimeouts();
     clearQueue();
     if (resetCallback) resetCallback();
+}
+
+export function start() {
+    reset();
+    if (startCallback) startCallback();
 }
 
 export * as default from "./GameManager.js";

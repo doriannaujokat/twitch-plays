@@ -1,11 +1,13 @@
 import fs from "node:fs/promises";
 import fss from "node:fs";
 import path from "node:path";
+import { CommandOptions } from "./CommandManager.js";
 
 const defaultConfig: Config = Object.freeze({
     channel: "twitch",
     threshold: 4,
     timeout: 2,
+    wait: 0,
     game: "none",
     groupCommandsInFile: true,
 });
@@ -13,6 +15,7 @@ const defaultConfig: Config = Object.freeze({
 export interface CommonConfig {
     threshold: number;
     timeout: number;
+    wait: number;
 }
 
 export interface Config extends CommonConfig {
@@ -23,6 +26,7 @@ export interface Config extends CommonConfig {
 }
 
 export interface GameConfig extends CommonConfig {
+    commands: Record<string, CommandOptions>;
     positions: Record<string, {x: number, y: number}>;
 }
 
@@ -59,7 +63,7 @@ export async function loadConfig() {
     }
     try {
         const file = await fs.readFile(configPath, {encoding: "utf-8", flag: "r"});
-        config = Object.assign(Object.assign({}, defaultConfig), JSON.parse(file));
+        config = Object.deepMerge(Object.assign({}, defaultConfig), JSON.parse(file));
     } catch (e) {
         console.error(e);
         config = undefined;
@@ -71,11 +75,9 @@ export async function loadConfig() {
 }
 
 export async function createGameConfigFolder() {
-    return await fs.mkdir(path.join(process.cwd(), "config"), {});
-}
-
-export async function loadGameConfig(game: string) {
-
+    try {
+        await fs.mkdir(path.join(process.cwd(), "config"), {});
+    } catch {}
 }
 
 export function on(callback: (config: Config) => void) {
@@ -87,11 +89,11 @@ export function off(callback: () => void) {
 
 export async function init() {
     await loadConfig();
-    watch();
+    //watch();
 }
 
 export function getValue(id: keyof Config) {
-    return config[id] ?? null;
+    return config?.[id] ?? null;
 }
 
 export * as default from "./Config.js";

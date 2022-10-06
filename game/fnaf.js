@@ -6,6 +6,21 @@ let llon = false;
 let rlon = false;
 
 const DEFAULT = {
+    commands: {
+        lopen: {},
+        lclose: {},
+        ropen: {},
+        rclose: {},
+        llight: {},
+        rlight: {},
+        cams: {},
+        stage: {},
+        foxy: {},
+        bonnie: {},
+        chica: {},
+        kitchen: {},
+        boop: {threshold: 4, timeout: 2, wait: 5, subsOnly: false, enabledOnStart: true},
+    },
     positions: {
         idle: {x: 546, y: 450},
         ldoor: {x: 53, y: 342},
@@ -24,7 +39,7 @@ const DEFAULT = {
 defaultConfig(DEFAULT);
 
 function getPosition(name) {
-    return config.positions[name]??DEFAULT.positions[name];
+    return config.positions?.[name]??DEFAULT.positions[name];
 }
 
 function returnToIdle() {
@@ -41,103 +56,106 @@ function rdoorClick() {
     execute({type: "click", x: RDOOR.x, y: RDOOR.y, delay: isright ? 100 : 750});
     isright = true;
 }
-command("lopen", () => {
-    if (lopen || campup) return;
-    ldoorClick();
-    lopen = true;
-    updateCommandsList();
-});
-command("lclose", function () {
-    if (!lopen || campup) return;
-    ldoorClick();
-    lopen = false;
-    updateCommandsList();
-});
-command("ropen", () => {
-    if (ropen || campup) return;
-    rdoorClick();
-    ropen = true;
-    updateCommandsList();
-});
-command("rclose", function () {
-    if (!ropen || campup) return;
-    rdoorClick();
-    ropen = false;
-    updateCommandsList();
-});
-command("llight", function () {
-    if (campup) return;
-    const LLIGHT = getPosition("llight");
-    execute({type: "click", x: LLIGHT.x, y: LLIGHT.y, delay: isright ? 750 : 100});
-    isright = false;
-    llon = !llon;
-    rlon = false;
-});
-command("rlight", function () {
-    if (campup) return;
-    const RLIGHT = getPosition("rlight");
-    execute({type: "click", x: RLIGHT.x, y: RLIGHT.y, delay: isright ? 100 : 750});
-    isright = true;
-    rlon = !rlon;
-    llon = false;
-});
-command("boop", function () {
-    if (campup) return;
-    if (isright) {
-        const LDOOR = getPosition("ldoor");
-        execute({type: "pos", x: LDOOR.x, y: LDOOR.y});
-        execute({type: "delay", ms: 750});
-    }
-    const BOOP = getPosition("boop");
-    execute({type: "click", x: BOOP.x, y: BOOP.y, delay: 50});
-});
-command("cams", function () {
-    const IDLE = getPosition("idle");
-    const CAMS = getPosition("cams");
-    execute({type: "pos", x: IDLE.x, y: IDLE.y});
-    execute({type: "delay", ms: 100});
-    execute({type: "move", x: CAMS.x, y: CAMS.y});
-    execute({type: "move", x: IDLE.x, y: IDLE.y});
-    campup = !campup;
-    llon = false;
-    rlon = false;
-    updateCommandsList();
+register(() => {
+    command("lopen", () => {
+        if (lopen || campup) return;
+        ldoorClick();
+        lopen = true;
+        updateCommandsList();
+    });
+    command("lclose", function () {
+        if (!lopen || campup) return;
+        ldoorClick();
+        lopen = false;
+        updateCommandsList();
+    });
+    command("ropen", () => {
+        if (ropen || campup) return;
+        rdoorClick();
+        ropen = true;
+        updateCommandsList();
+    });
+    command("rclose", function () {
+        if (!ropen || campup) return;
+        rdoorClick();
+        ropen = false;
+        updateCommandsList();
+    });
+    command("llight", function () {
+        if (campup) return;
+        const LLIGHT = getPosition("llight");
+        execute({type: "click", x: LLIGHT.x, y: LLIGHT.y, delay: isright ? 750 : 100});
+        isright = false;
+        llon = !llon;
+        rlon = false;
+    });
+    command("rlight", function () {
+        if (campup) return;
+        const RLIGHT = getPosition("rlight");
+        execute({type: "click", x: RLIGHT.x, y: RLIGHT.y, delay: isright ? 100 : 750});
+        isright = true;
+        rlon = !rlon;
+        llon = false;
+    });
+    command("boop", function () {
+        if (campup) return;
+        if (isright) {
+            const LDOOR = getPosition("ldoor");
+            execute({type: "pos", x: LDOOR.x, y: LDOOR.y});
+            execute({type: "delay", ms: 750});
+        }
+        const BOOP = getPosition("boop");
+        execute({type: "click", x: BOOP.x, y: BOOP.y, delay: 50});
+    });
+    command("cams", function () {
+        const IDLE = getPosition("idle");
+        const CAMS = getPosition("cams");
+        execute({type: "pos", x: IDLE.x, y: IDLE.y});
+        execute({type: "delay", ms: 100});
+        execute({type: "move", x: CAMS.x, y: CAMS.y});
+        execute({type: "move", x: IDLE.x, y: IDLE.y});
+        campup = !campup;
+        llon = false;
+        rlon = false;
+        updateCommandsList();
+    });
+
+    command("stage", function () {
+        if (!campup) return;
+        const CAM1A = getPosition("cam1a");
+        execute({type: "click", x: CAM1A.x, y: CAM1A.y, delay: 50});
+        returnToIdle();
+    });
+    command("foxy", function () {
+        if (!campup) return;
+        const CAM1C = getPosition("cam1c");
+        execute({type: "click", x: CAM1C.x, y: CAM1C.y, delay: 50});
+        returnToIdle();
+    });
+    command("bonnie", function () {
+        if (!campup) return;
+        const CAM2B = getPosition("cam2b");
+        execute({type: "click", x: CAM2B.x, y: CAM2B.y, delay: 50});
+        returnToIdle();
+    });
+    command("chica", function () {
+        if (!campup) return;
+        const CAM4B = getPosition("cam4b");
+        execute({type: "click", x: CAM4B.x, y: CAM4B.y, delay: 50});
+        returnToIdle();
+    });
+    command("kitchen", function () {
+        if (!campup) return;
+        const CAM6 = getPosition("cam6");
+        execute({type: "click", x: CAM6.x, y: CAM6.y, delay: 50});
+        returnToIdle();
+    });
+
+    addToGroup("doors", "lopen", "lclose", "ropen", "rclose");
+    addToGroup("lights", "llight", "rlight");
+    addToGroup("cams", "cams", "stage", "foxy", "bonnie", "chica", "kitchen");
 });
 
-command("stage", function () {
-    if (!campup) return;
-    const CAM1A = getPosition("cam1a");
-    execute({type: "click", x: CAM1A.x, y: CAM1A.y, delay: 50});
-    returnToIdle();
-});
-command("foxy", function () {
-    if (!campup) return;
-    const CAM1C = getPosition("cam1c");
-    execute({type: "click", x: CAM1C.x, y: CAM1C.y, delay: 50});
-    returnToIdle();
-});
-command("bonnie", function () {
-    if (!campup) return;
-    const CAM2B = getPosition("cam2b");
-    execute({type: "click", x: CAM2B.x, y: CAM2B.y, delay: 50});
-    returnToIdle();
-});
-command("chica", function () {
-    if (!campup) return;
-    const CAM4B = getPosition("cam4b");
-    execute({type: "click", x: CAM4B.x, y: CAM4B.y, delay: 50});
-    returnToIdle();
-});
-command("kitchen", function () {
-    if (!campup) return;
-    const CAM6 = getPosition("cam6");
-    execute({type: "click", x: CAM6.x, y: CAM6.y, delay: 50});
-    returnToIdle();
-});
-
-addToGroup("doors", "lopen", "lclose", "ropen", "rclose");
-addToGroup("lights", "llight", "rlight");
-addToGroup("cams", "cams", "stage", "foxy", "bonnie", "chica", "kitchen");
 function updateCommandsList() {
     const cmds = [];
     cmds.push("cams");
@@ -158,8 +176,11 @@ function updateCommandsList() {
     }
     availabilityChanged(cmds);
 }
+start(() => {
+    const LDOOR = getPosition("ldoor");
+    execute({type: "pos", x: LDOOR.x, y: LDOOR.y});
+});
 reset(() => {
-    console.log(config);
     lopen = true;
     ropen = true;
     campup = false;
