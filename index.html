@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script type="module">
+        import {ServerConnection} from "./js/ServerConnection.js";
+        const url = new URL(window.location.href);
+        const conn = new ServerConnection().setURL(url.searchParams.get('server')??'127.0.0.1:62463').connect();
+
+        let defaultConfig = undefined;
+        let userConfig = undefined;
+
+        conn.on("connect", () => {
+            conn.send('onevent/commands');
+            conn.send('onevent/userconfig');
+            conn.send('onevent/defaultconfig');
+            createConfig(conn.VERSION);
+        });
+        conn.on("disconnect", () => {
+            document.querySelector("#tab-control .control-items").replaceChildren();
+            const settings = document.querySelector('#tab-settings').replaceChildren();
+        });
+        conn.on("get", (name, data) => {
+            if (name === "userconfig") {
+                userConfig = data;
+                updateConfig();
+                return;
+            }
+            if (name === "defaultconfig") {
+                defaultConfig = data;
+                updateConfig();
+                return;
+            }
+        });
+
+        conn.on("commands", (commands) => {
+            const _commands = Object.keys(commands);
+            const _groups = Object.values(commands).map((command) => command.groups).flat();
+            for (let groupDom of document.querySelectorAll(".control-group")) {
+                if (!_groups.includes(groupDom.dataset.controlGroup) && groupDom.dataset.controlGroup !== "undefined") groupDom.remove();
+            }
+            for (let commandDom of document.querySelectorAll(".control-item")) {
+                if (!_commands.includes(commandDom.dataset.controlCommand)) commandDom.remove();
+            }
+            let noGroup = document.querySelector(".control-group[data-control-group='undefined']");
+            if (!noGroup) {
+                noGroup = document.getElementById('template-control-group').content.firstElementChild.cloneNode(true);
+                noGroup.dataset.controlGroup = 'undefined';
+                noGroup.querySelector('.group-title').innerText = ("No Group").toUpperCase();
+                noGroup.querySelectorAll('[data-control-group-action]').forEach((el) => el.remove());
+                document.querySelector("#tab-control").appendChild(noGroup);
+            }
+            for (let [command, data] of Object.entries(commands)) {
+                for (let group of (data.groups.length > 0 ? data.groups : [undefined])) {
+                    let groupDom = group?document.querySelector(`.control-group[data-control-group="${group}"]`):noGroup;
+                    if (!groupDom) {
+                        groupDom = document.getElementById('template-control-group').content.firstElementChild.cloneNode(true);
+                        groupDom.dataset.controlGroup = group??'undefined';
+                        groupDom.querySelector('.group-title').innerText = (group??"No Group").toUpperCase();
+                        if (!group) groupDom.querySelectorAll('[data-control-group-action]').forEach((el) => el.remove());
+                        document.querySelector("#tab-control .control-items").appendChild(groupDom);
+                    }
+                    let controlDom = groupDom.querySelector(`.control-item[data-control-command="${command}"]`);
+                    if (!controlDom) {
+                        controlDom = document.getElementById('template-control-item').content.firstElementChild.cloneNode(true);
+                        controlDom.dataset.controlCommand = command;
+                        controlDom.querySelector('.command-title').innerText = command;
+                        groupDom.querySelector('.group-elements').append(controlDom);
+                    }
+                    controlDom.toggleAttribute('active', data.enabled);
+                }
+                //document.querySelector(`button[data-control-command="${command}"]`)?.toggleAttribute('active',data.enabled);
+            }
+            document.querySelector("#tab-control .control-items").appendChild(noGroup);
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('nav-items').addEventListener('click', (e) => {
+                if (e.target.matches('.nav-item')) {
+                    e.currentTarget.querySelectorAll('.nav-item').forEach((el) => el.toggleAttribute('selected', false));
+                    e.target.toggleAttribute('selected', true);
+                    document.querySelectorAll('.tab').forEach((el) => el.toggleAttribute('selected', false));
+                    document.querySelector(`.tab[data-tab-id="${e.target.dataset.tabId}"]`).toggleAttribute('selected', true);
+                }
+            });
+            document.getElementById('tab-control').addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    if (e.target.dataset.controlId) {
+                        if (e.target.dataset.controlId === "start") conn.send("start");
+                        if (e.target.dataset.controlId === "stop") conn.send("stop");
+                        if (e.target.dataset.controlId === "all" && e.target.dataset.controlAction === "1") conn.send("enableall");
+                        if (e.target.dataset.controlId === "all" && e.target.dataset.controlAction === "0") conn.send("disableall");
+                        return;
+                    }
+                    if (e.target.dataset.controlCommandAction && e.target.parentElement.dataset.controlCommand) {
+                        if (e.target.dataset.controlCommandAction === "toggle") conn.send("togglecommand/" + e.target.parentElement.dataset.controlCommand);
+                        if (e.target.dataset.controlCommandAction === "run") conn.send("runcommand/" + e.target.parentElement.dataset.controlCommand);
+                        return;
+                    }
+                    if (e.target.dataset.controlGroupAction && e.target.parentElement.parentElement.dataset.controlGroup) {
+                        if (e.target.dataset.controlGroupAction === "1") conn.send("enablegroup/" + e.target.parentElement.parentElement.dataset.controlGroup);
+                        else conn.send("disablegroup/" + e.target.parentElement.parentElement.dataset.controlGroup);
+                        return;
+                    }
+                }
+            });
+            document.getElementById('tab-settings').addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    if (!e.target.dataset.settingAction || !e.target.parentElement?.parentElement?.dataset?.settingId) return;
+                    if (e.target.dataset.settingAction === "undo") {
+                        e.target.parentElement.parentElement.toggleAttribute('changed', false);
+                        updateConfig();
+                        return;
+                    }
+                    if (e.target.dataset.settingAction === "save") {
+                        const settingId = e.target.parentElement.parentElement.dataset.settingId;
+                        const input = e.target.parentElement.parentElement.querySelector('input');
+                        if (!input) return;
+                        let value = undefined;
+                        if (input.type === "text") {
+                            value = input.value && input.value !== "" ?input.value:null;
+                        }
+                        if (input.type === "number") {
+                            value = input.value && input.value !== "" ?parseFloat(input.value):null;
+                        }
+                        conn.send("set/userconfig/" + JSON.stringify({[settingId]: value}));
+                        e.target.parentElement.parentElement.toggleAttribute('changed', false);
+                        return;
+                    }
+                }
+            });
+            document.getElementById('tab-settings').addEventListener('input', (e) => {
+                if (e.target instanceof HTMLInputElement) {
+                    if (!e.target?.parentElement?.parentElement?.dataset?.settingId) return;
+                    const settingId = e.target.parentElement.parentElement.dataset.settingId;
+                    if (e.target.type === "text") {
+                        if (e.target.value === userConfig[settingId] || (e.target.value === "" && (userConfig[settingId] === undefined || userConfig[settingId] === null))) e.target.parentElement.parentElement.toggleAttribute('changed', false);
+                        else e.target.parentElement.parentElement.toggleAttribute('changed', true);
+                        return;
+                    }
+                    if (e.target.type === "number") {
+                        if (parseFloat(e.target.value) === userConfig[settingId] || (e.target.value === "" && (userConfig[settingId] === undefined || userConfig[settingId] === null))) e.target.parentElement.parentElement.toggleAttribute('changed', false);
+                        else e.target.parentElement.parentElement.toggleAttribute('changed', true);
+                        return;
+                    }
+                }
+            });
+            document.getElementById('tab-settings').addEventListener('change', (e) => {
+                if (e.target instanceof HTMLInputElement) {
+
+                }
+            });
+            document.getElementById('tab-settings').addEventListener('paste', (e) => {
+                if (e.target instanceof HTMLInputElement) {
+                    if (e.target?.parentElement?.parentElement?.dataset?.settingId === "channel") {
+                        e.preventDefault();
+                        let channel = e.clipboardData.getData("text/plain");
+                        const channelRegex = /(?:^https?:\/\/(?:www\.)?twitch\.tv\/)(\w+)(?:\/?)$/i;
+                        if (channelRegex.test(channel)) channel = channel.match(channelRegex)[1];
+                        e.target.value = channel;
+                        e.target.dispatchEvent(new Event('input', { bubbles: true }));
+                        e.target.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    return;
+                }
+                if (e.target instanceof HTMLButtonElement) {
+
+                }
+            });
+        });
+
+        function createConfig(version) {
+            const template = document.getElementById('template-setting');
+            const settings = document.querySelector('#tab-settings');
+            if (!settings.querySelector('.setting[data-setting-id="channel"]')) {
+                const setting = template.content.firstElementChild.cloneNode(true);
+                setting.dataset.settingId = "channel";
+                setting.querySelector('.setting-title').innerText = "Channel";
+                setting.querySelector('.description').innerText = "The Twitch channel to connect to.";
+                setting.querySelector('.input').innerHTML = `<div>https://twitch.tv/</div><input type="text" value="" />`;
+                settings.appendChild(setting);
+            }
+            if (!settings.querySelector('.setting[data-setting-id="game"]')) {
+                const setting = template.content.firstElementChild.cloneNode(true);
+                setting.dataset.settingId = "game";
+                setting.querySelector('.setting-title').innerText = "Game";
+                setting.querySelector('.description').innerHTML = "The game configuration to load. This needs to be the name of the <code>.js</code> file in the <code>game</code> folder without its file extension.";
+                setting.querySelector('.input').innerHTML = `<input type="text" value="" />`;
+                settings.appendChild(setting);
+            }
+            if (!settings.querySelector('.setting[data-setting-id="threshold"]')) {
+                const setting = template.content.firstElementChild.cloneNode(true);
+                setting.dataset.settingId = "threshold";
+                setting.querySelector('.setting-title').innerText = "Threshold";
+                setting.querySelector('.description').innerText = "How many people need to send a command for it to execute.";
+                setting.querySelector('.input').innerHTML = `<input type="number" value="" min="0" step="1" />`;
+                settings.appendChild(setting);
+            }
+            if (!settings.querySelector('.setting[data-setting-id="timeout"]')) {
+                const setting = template.content.firstElementChild.cloneNode(true);
+                setting.dataset.settingId = "timeout";
+                setting.querySelector('.setting-title').innerText = "Timeout";
+                setting.querySelector('.description').innerText = "The maximum time between two command calls until the count resets.";
+                setting.querySelector('.input').innerHTML = `<input type="number" value="" min="2" step="0.01" />`;
+                settings.appendChild(setting);
+            }
+            if (!settings.querySelector('.setting[data-setting-id="wait"]')) {
+                const setting = template.content.firstElementChild.cloneNode(true);
+                setting.dataset.settingId = "wait";
+                setting.querySelector('.setting-title').innerText = "Wait";
+                setting.querySelector('.description').innerText = "The minimum time between two command executions.";
+                setting.querySelector('.input').innerHTML = `<input type="number" value="" min="0" step="0.01" />`;
+                settings.appendChild(setting);
+            }
+        }
+
+        function updateConfig() {
+            const settings = document.querySelector('#tab-settings');
+            for (let [key, value] of Object.entries(defaultConfig??{})) {
+                const setting = settings.querySelector(`.setting[data-setting-id="${key}"]`);
+                const input = setting?.querySelector(`input`);
+                if (!input) continue;
+                input.placeholder = value;
+            }
+            for (let [key, value] of Object.entries(userConfig??{})) {
+                const setting = settings.querySelector(`.setting[data-setting-id="${key}"]`);
+                const input = setting?.querySelector(`input`);
+                if (!input) continue;
+                if (setting.hasAttribute('changed')) continue;
+                if (input.type === "text" || input.type === "number") {
+                    input.value = value;
+                    setting.toggleAttribute('changed', false);
+                }
+            }
+        }
+
+    </script>
+    <link rel="stylesheet" href="./themes/default.css">
+    <link rel="stylesheet" href="./themes/monty.css">
+    <link rel="stylesheet" href="./layout.css">
+    <link rel="stylesheet" href="./config.css">
+    <template id="template-control-group">
+        <div class="control-group" data-control-group="">
+            <div class="group-header">
+                <div class="group-title">Doors</div>
+                <button data-control-group-action="1">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M18 1C14.67619 1 12 3.6761905 12 7L12 8L2.9296875 8C1.8656875 8 1 8.897 1 10L1 20C1 21.103 1.8656875 22 2.9296875 22L14.070312 22C15.134312 22 16 21.103 16 20L16 10C16 8.897 15.135266 8 14.072266 8L14 8L14 7C14 4.7238095 15.72381 3 18 3C20.27619 3 22 4.7238095 22 7L22 9L24 9L24 7C24 3.6761905 21.32381 1 18 1 z M 8.5078125 13C9.6078125 13 10.507812 13.9 10.507812 15C10.507812 16.1 9.6078125 17 8.5078125 17C7.4078125 17 6.5078125 16.1 6.5078125 15C6.5078125 13.9 7.4078125 13 8.5078125 13 z" />
+                    </svg>
+                    <div class="label">On</div>
+                </button>
+                <button data-control-group-action="0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M12 1C8.6761905 1 6 3.6761905 6 7L6 8C4.9 8 4 8.9 4 10L4 20C4 21.1 4.9 22 6 22L18 22C19.1 22 20 21.1 20 20L20 10C20 8.9 19.1 8 18 8L18 7C18 3.6761905 15.32381 1 12 1 z M 12 3C14.27619 3 16 4.7238095 16 7L16 8L8 8L8 7C8 4.7238095 9.7238095 3 12 3 z M 12 13C13.1 13 14 13.9 14 15C14 16.1 13.1 17 12 17C10.9 17 10 16.1 10 15C10 13.9 10.9 13 12 13 z" />
+                    </svg>
+                    <div class="label">Off</div>
+                </button>
+            </div>
+            <div class="group-elements"></div>
+        </div>
+    </template>
+    <template id="template-control-item">
+        <div class="control-item" data-control-command="">
+            <div class="label command-title"></div>
+            <button data-control-command-action="run">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M19,3H5C3.897,3,3,3.897,3,5v14c0,1.103,0.897,2,2,2h14c1.103,0,2-0.897,2-2V5C21,3.897,20.103,3,19,3z M16,12l-7,4V8L16,12 z" />
+                </svg>
+                <div class="label">Execute</div>
+            </button>
+            <button data-control-command-action="toggle">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M12,2C6.477,2,2,6.477,2,12c0,5.523,4.477,10,10,10s10-4.477,10-10C22,6.477,17.523,2,12,2z M11,4h2v8h-2V4z M12,20 c-4.411,0-8-3.589-8-8c0-3.35,2.072-6.221,5-7.411v2.223C7.21,7.851,6,9.785,6,12c0,3.309,2.691,6,6,6s6-2.691,6-6 c0-2.215-1.21-4.149-3-5.188V4.589c2.928,1.19,5,4.061,5,7.411C20,16.411,16.411,20,12,20z" />
+                </svg>
+                <div class="label">Toggle</div>
+            </button>
+        </div>
+    </template>
+    <template id="template-setting">
+        <div class="setting" data-setting-id="channel">
+            <div class="label setting-title"></div>
+            <div class="input">
+
+            </div>
+            <div class="control">
+                <button data-setting-action="save" title="Save changes">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M17,3H5C3.89,3,3,3.9,3,5v14c0,1.1,0.89,2,2,2h14c1.1,0,2-0.9,2-2V7L17,3z M12,19c-1.66,0-3-1.34-3-3s1.34-3,3-3 s3,1.34,3,3S13.66,19,12,19z M15,9H5V5h10V9z" />
+                    </svg>
+                </button>
+                <button data-setting-action="undo" title="Undo changes">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M2 7L2 16L11 16L7.3789062 12.378906C8.7653195 11.211569 10.5449 10.5 12.5 10.5C16.034 10.5 19.024984 12.794656 20.083984 15.972656L22.451172 15.183594C21.062172 11.012594 17.138 8 12.5 8C9.8543339 8 7.4570807 8.9979817 5.6152344 10.615234L2 7 z" />
+                    </svg>
+                </button>
+                <button data-setting-action="reset" title="Reset to default">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M12 2C6.486 2 2 6.486 2 12C2 17.514 6.486 22 12 22C17.514 22 22 17.514 22 12L20 12C20 16.411 16.411 20 12 20C7.589 20 4 16.411 4 12C4 7.589 7.589 4 12 4C14.205991 4 16.202724 4.9004767 17.650391 6.3496094L15 9L22 9L22 2L19.060547 4.9394531C17.251786 3.1262684 14.757292 2 12 2 z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="description"></div>
+        </div>
+    </template>
+</head>
+<body>
+<div id="app">
+    <div id="content">
+        <div class="tab" id="tab-settings" data-tab-id="settings" selected>
+
+        </div>
+        <div class="tab" data-tab-id="gsettings">
+            <div class="config-group">
+
+            </div>
+        </div>
+        <div class="tab" data-tab-id="control" id="tab-control">
+            <div class="control-items"></div>
+            <div class="control-row">
+                <button data-control-id="start">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M8,5v14l11-7L8,5z" />
+                    </svg>
+                    <div class="label">Start</div>
+                </button>
+                <button data-control-id="stop">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M5 5L5 19L19 19L19 5L5 5 z" />
+                    </svg>
+                    <div class="label">Stop/Reset</div>
+                </button>
+                <button data-control-id="all" data-control-action="1">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M18 1C14.67619 1 12 3.6761905 12 7L12 8L2.9296875 8C1.8656875 8 1 8.897 1 10L1 20C1 21.103 1.8656875 22 2.9296875 22L14.070312 22C15.134312 22 16 21.103 16 20L16 10C16 8.897 15.135266 8 14.072266 8L14 8L14 7C14 4.7238095 15.72381 3 18 3C20.27619 3 22 4.7238095 22 7L22 9L24 9L24 7C24 3.6761905 21.32381 1 18 1 z M 8.5078125 13C9.6078125 13 10.507812 13.9 10.507812 15C10.507812 16.1 9.6078125 17 8.5078125 17C7.4078125 17 6.5078125 16.1 6.5078125 15C6.5078125 13.9 7.4078125 13 8.5078125 13 z" />
+                    </svg>
+                    <div class="label" data-item-role="label">All On</div>
+                </button>
+                <button data-control-id="all" data-control-action="0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M12 1C8.6761905 1 6 3.6761905 6 7L6 8C4.9 8 4 8.9 4 10L4 20C4 21.1 4.9 22 6 22L18 22C19.1 22 20 21.1 20 20L20 10C20 8.9 19.1 8 18 8L18 7C18 3.6761905 15.32381 1 12 1 z M 12 3C14.27619 3 16 4.7238095 16 7L16 8L8 8L8 7C8 4.7238095 9.7238095 3 12 3 z M 12 13C13.1 13 14 13.9 14 15C14 16.1 13.1 17 12 17C10.9 17 10 16.1 10 15C10 13.9 10.9 13 12 13 z" />
+                    </svg>
+                    <div class="label" data-item-role="label">All Off</div>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="nav">
+        <div class="nav-items" id="nav-items">
+            <button class="nav-item" data-tab-id="settings" selected>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M11.423828 2C11.179828 2 10.969688 2.1769687 10.929688 2.4179688L10.646484 4.1230469C10.159736 4.2067166 9.689176 4.3360771 9.2363281 4.5039062L8.1347656 3.1679688C7.9797656 2.9789688 7.7100469 2.9297344 7.4980469 3.0527344L6.5019531 3.6289062C6.2899531 3.7509062 6.1972031 4.0083281 6.2832031 4.2363281L6.8886719 5.8535156C6.513238 6.1663963 6.1663963 6.513238 5.8535156 6.8886719L4.2363281 6.2832031C4.0083281 6.1972031 3.7509062 6.2899531 3.6289062 6.5019531L3.0527344 7.4980469C2.9297344 7.7100469 2.9789688 7.9797656 3.1679688 8.1347656L4.5039062 9.2363281C4.3360771 9.689176 4.2067166 10.159736 4.1230469 10.646484L2.4179688 10.929688C2.1769687 10.970688 2 11.178828 2 11.423828L2 12.576172C2 12.820172 2.1769687 13.030312 2.4179688 13.070312L4.1230469 13.353516C4.2067166 13.840264 4.3360771 14.310824 4.5039062 14.763672L3.1679688 15.865234C2.9789687 16.020234 2.9307344 16.289953 3.0527344 16.501953L3.6289062 17.498047C3.7509062 17.710047 4.0083281 17.802797 4.2363281 17.716797L5.8535156 17.111328C6.1663963 17.486762 6.513238 17.833604 6.8886719 18.146484L6.2832031 19.763672C6.1972031 19.992672 6.2909531 20.249094 6.5019531 20.371094L7.4980469 20.947266C7.7100469 21.069266 7.9797656 21.020031 8.1347656 20.832031L9.234375 19.496094C9.6877476 19.664236 10.15912 19.793178 10.646484 19.876953L10.929688 21.582031C10.970688 21.823031 11.178828 22 11.423828 22L12.576172 22C12.820172 22 13.030312 21.823031 13.070312 21.582031L13.353516 19.876953C13.840264 19.793283 14.310824 19.663923 14.763672 19.496094L15.865234 20.832031C16.020234 21.021031 16.289953 21.069266 16.501953 20.947266L17.498047 20.371094C17.710047 20.249094 17.802797 19.991672 17.716797 19.763672L17.111328 18.146484C17.486762 17.833604 17.833604 17.486762 18.146484 17.111328L19.763672 17.716797C19.992672 17.802797 20.249094 17.709047 20.371094 17.498047L20.947266 16.501953C21.069266 16.289953 21.020031 16.020234 20.832031 15.865234L19.496094 14.765625C19.664236 14.312252 19.793178 13.84088 19.876953 13.353516L21.582031 13.070312C21.823031 13.029312 22 12.821172 22 12.576172L22 11.423828C22 11.179828 21.823031 10.969688 21.582031 10.929688L19.876953 10.646484C19.793283 10.159736 19.663923 9.689176 19.496094 9.2363281L20.832031 8.1347656C21.021031 7.9797656 21.069266 7.7100469 20.947266 7.4980469L20.371094 6.5019531C20.249094 6.2899531 19.991672 6.1972031 19.763672 6.2832031L18.146484 6.8886719C17.833604 6.513238 17.486762 6.1663963 17.111328 5.8535156L17.716797 4.2363281C17.802797 4.0073281 17.709047 3.7509062 17.498047 3.6289062L16.501953 3.0527344C16.289953 2.9307344 16.020234 2.9799687 15.865234 3.1679688L14.765625 4.5039062C14.312252 4.3357635 13.84088 4.2068225 13.353516 4.1230469L13.070312 2.4179688C13.029312 2.1769687 12.821172 2 12.576172 2L11.423828 2 z M 11 6.0898438L11 9.1738281 A 3 3 0 0 0 9 12 A 3 3 0 0 0 9.0507812 12.548828L6.3789062 14.089844C6.1382306 13.438833 6 12.736987 6 12C6 9.0161425 8.1553612 6.5637988 11 6.0898438 z M 13 6.0898438C15.844639 6.5637988 18 9.0161425 18 12C18 12.737875 17.86037 13.440133 17.619141 14.091797L14.947266 12.546875 A 3 3 0 0 0 15 12 A 3 3 0 0 0 13 9.1757812L13 6.0898438 z M 13.947266 14.277344L16.628906 15.826172C15.530388 17.156023 13.868625 18 12 18C10.131375 18 8.4696124 17.156023 7.3710938 15.826172L10.050781 14.279297 A 3 3 0 0 0 12 15 A 3 3 0 0 0 13.947266 14.277344 z" />
+                </svg>
+                <div class="label" data-item-role="label">Settings</div>
+            </button>
+            <button class="nav-item" data-tab-id="gsettings">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M10 2C9.448 2 9 2.448 9 3L9 4L2 4L2 6L9 6L9 7C9 7.552 9.448 8 10 8L11 8C11.552 8 12 7.552 12 7L12 3C12 2.448 11.552 2 11 2L10 2 z M 14 4L14 6L22 6L22 4L14 4 z M 15 9C14.448 9 14 9.448 14 10L14 11L2 11L2 13L14 13L14 14C14 14.552 14.448 15 15 15L16 15C16.552 15 17 14.552 17 14L17 10C17 9.448 16.552 9 16 9L15 9 z M 19 11L19 13L22 13L22 11L19 11 z M 5 16C4.448 16 4 16.448 4 17L4 18L2 18L2 20L4 20L4 21C4 21.552 4.448 22 5 22L6 22C6.552 22 7 21.552 7 21L7 17C7 16.448 6.552 16 6 16L5 16 z M 9 18L9 20L22 20L22 18L9 18 z" />
+                </svg>
+                <div class="label" data-item-role="label">Game</div>
+            </button>
+            <button class="nav-item" data-tab-id="control">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M21,5H3c0,0-2,6-2,9c0,2.761,2.239,5,5,5c2.1,0,9.9,0,12,0c2.761,0,5-2.239,5-5C23,11,21,5,21,5z M11,13H9v2H7v-2H5v-2h2 V9h2v2h2V13z M16,11c-0.552,0-1-0.448-1-1c0-0.552,0.448-1,1-1s1,0.448,1,1C17,10.552,16.552,11,16,11z M18,15 c-0.552,0-1-0.448-1-1c0-0.552,0.448-1,1-1s1,0.448,1,1C19,14.552,18.552,15,18,15z" />
+                </svg>
+                <div class="label" data-item-role="label">Control</div>
+            </button>
+        </div>
+    </div>
+</div>
+</body>
+</html>

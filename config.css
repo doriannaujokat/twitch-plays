@@ -1,0 +1,250 @@
+#app {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: grid;
+    grid-template-areas: "header header header" "nav content content" "nav content content";
+    grid-template-rows: auto 1fr auto;
+    grid-template-columns: auto 1fr auto;
+}
+
+#nav {
+    grid-area: nav;
+    background-color: var(--navbar-background);
+    border-right: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-content: flex-start;
+    justify-content: flex-start;
+    align-items: flex-start;
+    user-select: none;
+    overflow: hidden scroll;
+}
+
+#content {
+    grid-area: content;
+    overflow: hidden;
+}
+
+.nav-items {
+    width: 100%;
+}
+.tab:not([selected]) {
+    display: none;
+}
+.nav-item {
+    display: flex;
+    padding: 0.5em;
+    text-decoration: none;
+    color: var(--color);
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    align-content: center;
+    cursor: pointer;
+    width: 100%;
+    box-sizing: border-box;
+}
+.nav-item[selected] {
+    background-color: var(--primary);
+    color: var(--primary-text);
+}
+.control-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    position: sticky;
+    bottom: 0px;
+    background-color: var(--navbar-background);
+    padding: 5px 0 1em 0;
+}
+.tab {
+    height: 100%;
+    overflow: hidden auto;
+}
+@supports (overflow: overlay) {
+    .tab {
+        overflow: hidden overlay;
+    }
+}
+
+.control-group {
+    padding: 1em;
+    margin: 0.5em;
+    background: var(--card);
+    border-radius: 0.5em;
+    color: var(--color);
+    user-select: none;
+}
+.group-header {
+    display: flex;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+}
+.group-title, .command-title {
+    flex: 1;
+    font-size: 1.5em;
+}
+.group-elements {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    padding: 0 0 0 0;
+    margin: 1em 0 0 0;
+    align-items: flex-start;
+    align-content: flex-start;
+    justify-content: flex-start;
+    border-radius: 0.25em;
+    overflow: hidden;
+}
+.control-item {
+    display: flex;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    align-content: center;
+    padding: 0.25em 0.25em 0.25em 0.5em;
+    background-color: red;
+    color: white;
+    width: 100%;
+    box-sizing: border-box;
+}
+.control-item[active] {
+    background-color: lime;
+    color: black;
+}
+.control-item button {
+    color: inherit;
+    background-color: #cb0202;
+}
+.control-item[active] button {
+    background-color: #02cb02;
+}
+.control-item svg {
+    height: 2.5em;
+}
+button[data-control-id] {
+    background-color: var(--background);
+    color: var(--color);
+}
+button[data-control-id="start"] {
+    background-color: var(--primary);
+    color: var(--primary-text);
+}
+
+.setting {
+    display: grid;
+    grid-template-areas: "label label" "input control" "description description";
+    grid-template-rows: 1fr auto;
+    grid-template-columns: 1fr auto;
+    user-select: none;
+    padding: 1em;
+    margin: 1em;
+    border-radius: 1em;
+    background-color: var(--card);
+}
+.setting .label {
+    grid-area: label;
+}
+.setting .input {
+    grid-area: input;
+    display: flex;
+    background-color: transparent;
+    align-items: baseline;
+    flex-wrap: nowrap;
+}
+.setting .input::placeholder {
+
+}
+.setting input {
+    background-color: transparent;
+    color: var(--color);
+    border: none;
+    outline: none;
+    width: 100%;
+    padding: 0.2em 0.2em 0.1em 0.1em;
+    box-sizing: border-box;
+    font-size: 1em;
+    transition: border-bottom-color 0.2s ease-in-out;
+    border-bottom: 2px solid transparent;
+}
+.setting input:focus-within {
+    border-bottom-color: var(--primary);
+}
+.setting .control {
+    grid-area: control;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-content: center;
+    align-items: center;
+    justify-content: flex-end;
+}
+.setting .description {
+    grid-area: description;
+}
+.setting .setting-title {
+    font-weight: bold;
+}
+.setting [data-setting-action="save"] {
+    background-color: var(--primary);
+    color: var(--primary-text);
+}
+.setting:not([changed]) :is([data-setting-action="save"], [data-setting-action="undo"]) {
+    display: none;
+}
+.setting[changed] :is([data-setting-action="reset"]) {
+    display: none;
+}
+
+@media (max-device-width: 799px) {
+    #app {
+        grid-template-areas: "header" "content" "nav";
+        grid-template-rows: auto 1fr auto;
+        grid-template-columns: 1fr;
+    }
+    #nav {
+        flex-direction: row;
+        align-items: center;
+        padding: 0.3em;
+        overflow: scroll hidden;
+        border: none;
+        height: 4rem;
+    }
+    .nav-items {
+        flex: 1;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        justify-content: space-around;
+        align-items: center;
+    }
+    .nav-item {
+        justify-content: center;
+        flex-wrap: nowrap;
+        flex-direction: column;
+        align-content: center;
+        cursor: pointer;
+        border-radius: 5px;
+        width: unset;
+        min-width: 3.6rem;
+        height: 3.6rem;
+    }
+    .nav-item svg {
+        height: 2em;
+    }
+    #nav [data-item-role="label"] {
+
+    }
+}
+
+@media (max-width: 399px) {
+    button .label {
+        display: none;
+    }
+}

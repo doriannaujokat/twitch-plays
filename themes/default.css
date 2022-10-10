@@ -1,0 +1,20 @@
+:root {
+    --background: #0e0e10;
+    --header-background: #18181b;
+    --navbar-background: #1f1f23;
+    --primary: #9147ff;
+    --primary-text: #fff;
+    --color: white;
+    --card: #1f1c21;
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --background: #f7f7f8;
+        --header-background: #fff;
+        --navbar-background: #efeff1;
+        --primary: #9147ff;
+        --color: black;
+        --card: #eee6ff;
+    }
+}
